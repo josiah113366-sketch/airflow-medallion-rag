@@ -82,3 +82,7 @@ s3://ECOMMERCE_BUCKET/
         - DockerFile 구성
     - postgresql
         - image 구성
+    - 설치 
+      ```
+        docker compose up -d --build
+      ```
