@@ -25,8 +25,13 @@ log                 = logging.getLogger(__name__)
 
 # 공용/공통 등 함수 
 
-# DAG (@dag)
+# DAG (@dag), 특정 함수에 @dag 데커레이터 추가하면 DAG 구성됨
+@dag() 
+def ecommerce_silver_to_gold(): 
 
   # TASK (@task 구성, taskgroup(n개 task 그룹화))
 
-# 의존성(3.X 방향성 지시, TASK의 결과를 새로 넣으면서 진행, 병렬 진행, fan-in/fan-out 구성)
+  # 의존성(3.X 방향성 지시, TASK의 결과를 새로 넣으면서 진행, 병렬 진행, fan-in/fan-out 구성)
+  pass
+
+ecommerce_silver_to_gold()
