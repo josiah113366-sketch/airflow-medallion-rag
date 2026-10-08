@@ -10,7 +10,7 @@
                              |
                       inspect_silver
                              |
-             +---------------+---------------+  <- 병렬작업, fan-in >
+             +---------------+---------------+  <- 병렬작업, fan-out >
              |                               |
              v                               v
       Analytics Gold                  Knowledge Gold
@@ -24,7 +24,7 @@
              v                               v
       PostgreSQL Tables               pgvector Tables
              |                               |
-             +---------------+---------------+  <- fan-out >
+             +---------------+---------------+  <- fan-in >
                              |
                           작업 완료
                              |                             
