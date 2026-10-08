@@ -33,6 +33,7 @@ services:
 
 
   airflow:
+    # Dockerfile이 존재하는 경로 명시
     build:
       context: .
       dockerfile: Dockerfile
@@ -43,11 +44,15 @@ services:
       postgres:
         condition: service_healthy
 
+    # 한 개의 서비스에서 모든 기능 제공 (대시보드, DAG 운영, 스케줄링, ...)
     command: standalone
 
+    # 대시보드용 (3.x : react + fastapi | 2.x: flask)
     ports:
       - "8080:8080"
 
+    # 환경 설정 파일 -> 컨테이너의 OS단 환경 변수로 자동 세팅
+    # 단, aws 커넥션 정보(키)는 대시보드에서 커넥션 등록으로 대체
     env_file:
       - .env
 
@@ -56,6 +61,7 @@ services:
 
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      # 타임존 서울
       AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Seoul
 
       # ------------------------------------------------------
