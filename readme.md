@@ -162,3 +162,10 @@ ecommerce=> exit;
 # airflow용 접속 
 docker compose exec postgres psql -U airflow -d airflow    
 ```
+
+# DAG 구성
+```
+/
+L dags
+  L ecommerce_silver_to_gold.py : 실버 데이터 -> 가공 -> 골드 데이터 구성 (분석, 지식 병렬 처리)
+```
