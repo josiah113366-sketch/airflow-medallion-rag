@@ -1,18 +1,24 @@
 services:
   # 데이터베이스 : airflow 메타 데이터 저장, 대시보드 운영, 서비스(골드 데이터(분석, 지식) 저장)
   postgres:
+    # pg16 + pgvector 확장 이미지
     image: pgvector/pgvector:0.8.6-pg16-bookworm
     container_name: ecommerce-postgres
 
+    # 환경 변수 
     # PostgreSQL 관리자 계정
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
 
+    # 포트 
     ports:
       - "5432:5432"
 
+    # 볼륨 마운트 사용 : 도커 내부에 저장 공유
+    # db 초기화 파일 연결
+    # ./db/init/*.sql이 존재한다면 초기화 진행 (db 생성 후 sql 작동 -> 테이블 등 구성)
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
