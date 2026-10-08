@@ -75,3 +75,10 @@ s3://ECOMMERCE_BUCKET/
         ├── policies.csv
         └── _SUCCESS
 ```
+
+# 로컬 환경 구성
+- docker-compose
+    - airflow
+        - DockerFile 구성
+    - postgresql
+        - image 구성
