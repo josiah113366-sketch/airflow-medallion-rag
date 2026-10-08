@@ -72,8 +72,23 @@ def ecommerce_silver_to_gold():
     mode = "reschedule"
   ) 
 
+  # 2번째 task -> 함수형 구성
+  @task # 함수 위에 @task 데커레이터가 부여되면 task로 구성됨
+  def resolve_process_date() -> str:
+    '''
+      airflow context에서 정보 획득
+    '''
+    context = get_current_context()
+    # 코드 레벨로 파라미터 값을 추출(컨텍스트를 통해서)
+    return context['params']['process_date']
+
+  # T1(task instance)가 생성됨
+  process_date = resolve_process_date()
+
   # 의존성(3.X 방향성 지시, TASK의 결과를 새로 넣으면서 진행, 병렬 진행, fan-in/fan-out 구성)
   # task >> task
+  # 필요 시 계속 추가 
+  wait_for_silver >> process_date
   pass
 
 ecommerce_silver_to_gold()
