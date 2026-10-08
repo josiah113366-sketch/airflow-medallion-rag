@@ -54,10 +54,26 @@ log                 = logging.getLogger(__name__)
   tags = ["medallion", "gold", "rag", "vector"]
 ) 
 def ecommerce_silver_to_gold(): 
-
   # TASK (@task 구성, taskgroup(n개 task 그룹화))
+  # T1. silver partition 확인 (작업해도 되는지 점검)
+  wait_for_silver = S3KeySensor(
+    task_id = "wait_for_silver", 
+    bucket_name = BUCKET, 
+    # params.process_date -> 실습상 주입한 파라미터 -> 실제는 dt 값을 획득 구성
+    # _SUCCESS 파일이 존재하면 데이터가 모두 적재된 것으로 인지
+    bucket_key = "silver/dt={{ params.process_date }}/_SUCCESS",  
+    # AWS 접속 인증 (UI 상에 커넥션 등록값 활용), 만약 없다면 None, env에 키 등록해야 함. 
+    aws_conn_id = "aws_default", 
+    # 15초마다 확인
+    poke_interval = 15, 
+    # 최대 10분간 대기 후 실패 처리 
+    timeout = 60*10, 
+    # 대기 중에 계속 점유하지 않도록 재스케줄링 모드로 적용 
+    mode = "reschedule"
+  ) 
 
   # 의존성(3.X 방향성 지시, TASK의 결과를 새로 넣으면서 진행, 병렬 진행, fan-in/fan-out 구성)
+  # task >> task
   pass
 
 ecommerce_silver_to_gold()
