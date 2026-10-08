@@ -152,8 +152,30 @@ def ecommerce_silver_to_gold():
   # def analytics_gold(process_date: str):
   #   return {}
 
-  @task_group(group_id="knowledget_rag")
+  # 비정형/지식 데이터 처리 함수
+  @task_group(group_id="knowledge_rag")
   def knowledge_rag(process_date: str):
+    # 실버 데이터를 공통 문서 모델로 구성 task 집합 -> etl 수행 
+    @task
+    def build_knowledge_gold(): pass
+    # 1. 리뷰, cs, 환불, 정책 -> 통합 문서 구성 -> extract 
+    # transform 
+    # 2. 통합 문서의 문제 없는지 검사 
+    @task
+    def knowledge_quality_check(): pass
+    # 3. 검색 단위 청킹 처리 
+    @task
+    def chunk_documents():pass
+    # 4. 임베딩 -> 벡터화 
+    @task
+    def create_embedding(): pass
+    # 5. postgreSQL/pgVector 적재 -> load 
+    @task
+    def load_rag_to_pgvector(): pass
+    # 6. 실제 적재된 행 수 조회, 품질 확인 task (검증)
+    @task
+    def vector_quality_check(): pass
+
     return {}
 
   # 각각 task 그룹 실행 -> 호출 
