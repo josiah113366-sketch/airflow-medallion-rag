@@ -1,4 +1,5 @@
 services:
+  # 데이터베이스 : airflow 메타 데이터 저장, 대시보드 운영, 서비스(골드 데이터(분석, 지식) 저장)
   postgres:
     image: pgvector/pgvector:0.8.6-pg16-bookworm
     container_name: ecommerce-postgres
