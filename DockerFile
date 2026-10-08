@@ -6,3 +6,6 @@ USER airflow
 #           -> 3.x allinone -> 1개의 서비스에 모두 포함됨, db만 postgresql 공용
 # 추가 설치 패키지 때문에 Dockerfile 구성
 COPY requirements.txt /requirements.txt
+
+# 실행 
+RUN pip install --no-cache-dir "apache-airflow=3.3.2" -r /requirements.txt
