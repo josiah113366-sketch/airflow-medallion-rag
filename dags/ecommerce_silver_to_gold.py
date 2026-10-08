@@ -99,9 +99,24 @@ def ecommerce_silver_to_gold():
     # 처리 날짜 기준으로 silver 파티션 검사
     # 데이터가 있는 위치까지 경로 구성
     prefix = f"'silver/dt={process_date}/"
-    # 목록 조회
-    s3 
+    # 목록 조회 요청 
+    response = s3_client().list_objects_v2(
+      Bucket=BUCKET, 
+      Prefix=prefix,   
+    )
+    # 응답 데이터 중 Key 목록만 획득 
+    keys = sorted(
+      obj["Key"]
+      for obj in response.get("Contents", [])
+    )
+    print(f"keys = {keys}")
+    log.log(f"keys = {keys}")
+
+    return keys
     pass
+
+  # task 연결
+  silver_meta = inspect_silver( process_date )
 
   pass
 
