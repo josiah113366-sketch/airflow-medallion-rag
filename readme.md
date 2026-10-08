@@ -116,6 +116,49 @@ s3://ECOMMERCE_BUCKET/
 
 - 디비 접속 확인 (구성이 잘되었는지 점검)
 ```
-# 접속
+# [v] 이커머스용 접속
 docker compose exec postgres psql -U ecommerce -d ecommerce
+---
+PS C:\Users\NT551_11TH\Desktop\workspace\airflow-medallion-rag> docker compose exec postgres psql -U ecommerce -d ecommerce                              
+psql (16.15 (Debian 16.15-1.pgdg12+2))
+Type "help" for help.
+
+# 테이블 확인
+ecommerce=> \dt
+                List of relations
+ Schema |        Name         | Type  |   Owner   
+--------+---------------------+-------+-----------
+ public | daily_kpi           | table | ecommerce
+ public | document_chunks     | table | ecommerce
+ public | knowledge_documents | table | ecommerce
+ public | product_metrics     | table | ecommerce
+(4 rows)
+
+# 사용자 확인
+ecommerce=> \l
+                                                       List of databases
+   Name    |   Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | ICU Locale | ICU Rules |   Access privileges   
+-----------+-----------+----------+-----------------+------------+------------+------------+-----------+-----------------------
+ airflow   | airflow   | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | 
+ ecommerce | ecommerce | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | 
+ postgres  | postgres  | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | 
+ template0 | postgres  | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +
+           |           |          |                 |            |            |            |           | postgres=CTc/postgres
+ template1 | postgres  | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +
+           |           |          |                 |            |            |            |           | postgres=CTc/postgres
+(5 rows)
+
+# 확장팩 설치 확인 -> 백터
+ecommerce=> \dx
+                             List of installed extensions
+  Name   | Version |   Schema   |                     Description                      
+---------+---------+------------+------------------------------------------------------
+ plpgsql | 1.0     | pg_catalog | PL/pgSQL procedural language
+ vector  | 0.8.6   | public     | vector data type and ivfflat and hnsw access methods
+(2 rows)
+
+ecommerce=> exit;
+
+# airflow용 접속 
+docker compose exec postgres psql -U airflow -d airflow    
 ```
