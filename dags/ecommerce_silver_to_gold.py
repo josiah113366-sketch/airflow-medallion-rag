@@ -113,9 +113,10 @@ def ecommerce_silver_to_gold():
       for obj in response.get("Contents", [])
     )
     print(f"keys = {keys}")
+    # ['silver/dt=2026-10-08/_SUCCESS', 'silver/dt=2026-10-08/cs_tickets.csv', 'silver/dt=2026-10-08/orders.csv', 'silver/dt=2026-10-08/policies.csv', 'silver/dt=2026-10-08/products.csv', 'silver/dt=2026-10-08/refunds.csv', 'silver/dt=2026-10-08/reviews.csv']
 
     # 실버 파일 목록이 계획한대로 구성되었는지 조사 
-    
+    # 당일 스케줄 작동 시 해당 파일들이 반드시 존재해야 한다 !!! 
     required = {
         "orders.csv",
         "refunds.csv",
@@ -125,6 +126,15 @@ def ecommerce_silver_to_gold():
         "policies.csv",
         "_SUCCESS",
     }
+
+    # keys에서 실제 key만 추출 
+    targets = { key.rsplit("/", 1)[-1] for key in keys }
+
+    # 누락 파일 체크, 대상은 중복 제거되어 있음 
+    missing = sorted(required - targets)
+    # 누락이 존재하면 -> task 실패 처리
+    if missing:
+      raise ValueError(f"missing Silver files: { missing }")
 
     return keys
     pass
