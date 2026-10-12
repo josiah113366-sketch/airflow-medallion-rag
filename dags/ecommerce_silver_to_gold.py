@@ -435,7 +435,25 @@ def ecommerce_silver_to_gold():
     # 4. 임베딩 -> 벡터화 
     @task
     def create_embedding(chunk_meta: dict[str, Any], 
-                        process_date: str)-> dict[str, Any]: pass
+                        process_date: str)-> dict[str, Any]: 
+      # 1. chunk_meta를 이용하여 청크 데이터 획득 
+      chunks = read_jsonl_s3(chunk_meta["key"])
+      # 2. 벡터화된 데이터를 저장할 그릇 
+      embedded = []
+
+      # 3. 청크별로 임베딩 처리 -> 벡터화 
+      for chunk in chunks: 
+        embedded.append({
+          # 청크 구조화된 데이터 dict를 그대로 삽입   
+          **chunk, 
+          # 임베딩 데이터 추가 
+          "enbedding": embed(
+            chunk["content"] 
+          ) 
+        })
+      
+      pass
+    
     # 5. postgreSQL/pgVector 적재 -> load 
     @task
     def load_rag_to_pgvector(knowledge_meta: dict[str, Any], 
