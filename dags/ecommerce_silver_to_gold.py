@@ -496,7 +496,20 @@ def ecommerce_silver_to_gold():
     @task
     def load_rag_to_pgvector(knowledge_meta: dict[str, Any], 
                             embedding_meta: dict[str, Any], 
-                            process_date: str)-> dict[str, Any]: pass
+                            process_date: str)-> dict[str, Any]: 
+      # 데이터 획득 
+      # 지식 원문 데이터 획득 
+      documents = read_jsonl_s3( knowledge_meta['key'] )
+      # 임베딩 완료된 청크 데이터 획득 
+      chunks = read_jsonl_s3( embedding_meta['key'] )
+
+      # 데이터를 postgreSQL/pgVector 적재
+      # PostgresHook 획득 -> 데이터 삽입 처리 
+      hook = PostgresHook(
+        # ecommerce_db : airflow -> 커넥션 정보 등록 
+        postgres_conn_id = "ecommerce_db"  
+      ) 
+    
     # 6. 실제 적재된 행 수 조회, 품질 확인 task (검증)
     @task
     def vector_quality_check(
