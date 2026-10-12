@@ -19,6 +19,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 # 전역 변수(환경 변수) -> .env는 적용된 상태임 (airflow 내부 컨테이너)
 AWS_REGION          = os.getenv("AWS_REGION", "ap-northeast-2")
 BUCKET              = os.getenv("ECOMMERCE_BUCKET", "de-ai-16-infra-s3-bk-827913617635")
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "bedrock")
 BEDROCK_EMBED_MODEL = os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0")  
 BEDROCK_REGION      = os.getenv("BEDROCK_REGION","us-east-1")
 log                 = logging.getLogger(__name__)
@@ -103,8 +104,18 @@ def chunk_text(text: str,            # 문장 원본 데이터
 
   # 청크 목록 반환 
   return chunks 
-# 임베딩 
+
 # 토큰화 
+def bedrock_embedding(text:str) -> list[float]: 
+  pass
+
+# 임베딩 
+def embed(text: str) -> list[float]:
+  # 임베딩 모델별로 각각 처리 가능한 함수 
+  if EMBEDDING_PROVIDER == "bedrock": 
+    return bedrock_embedding(text) 
+
+  pass 
 
 # DAG (@dag), 특정 함수에 @dag 데커레이터 추가하면 DAG 구성됨
 @dag(
