@@ -451,7 +451,7 @@ def ecommerce_silver_to_gold():
 
           # 키 생성 
           key = (
-              f"gold/knowledge/dt={process_date}/"   
+              f"rag/chunks/dt={process_date}/"   
               "chunks.jsonl"
           )
 
@@ -480,7 +480,7 @@ def ecommerce_silver_to_gold():
       
       # 키 생성 
       key = (
-          f"gold/knowledge/dt={process_date}/"   
+          f"rag/embeddings/dt={process_date}/"   
           "embeddings.jsonl"
       )
       
