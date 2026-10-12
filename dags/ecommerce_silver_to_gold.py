@@ -24,6 +24,8 @@ BEDROCK_REGION      = os.getenv("BEDROCK_REGION","us-east-1")
 log                 = logging.getLogger(__name__)
 
 # 공용/공통 등 함수 
+##########
+# AWS 관련
 # s3 client 함수 
 def s3_client():
     # airflow ui에 등록한 커넥션 정보를 활용
@@ -67,6 +69,16 @@ def write_jsonl_s3( rows: list[dict[str, Any] ], key:str ) -> dict[str, Any]:
   # 메타 데이터 구성 후 반환
   return {"bucket": BUCKET, "key":key, "rows":len(rows)}
 
+##########
+# RAG 관련 
+# 청킹 (문서를 실제 검색 단위로 자르는 함수) 
+def chunk_text(text: str,            # 문장 원본 데이터 
+              max_chars: int = 220,  # 문서 단위로 자를 최대 문자수 임의 지정 
+              overlap: int = 50      # 문맥 정보 손실을 위해서 중첩 문자 수 임의 지정 
+)-> list{str}: 
+  pass
+# 임베딩 
+# 토큰화 
 
 # DAG (@dag), 특정 함수에 @dag 데커레이터 추가하면 DAG 구성됨
 @dag(
