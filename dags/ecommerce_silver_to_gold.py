@@ -182,9 +182,9 @@ def ecommerce_silver_to_gold():
   @task_group(group_id="knowledge_rag")
   def knowledge_rag(process_date: str):
     # 실버 데이터를 공통 문서 모델로 구성 task 집합 -> etl 수행 
-    # 1. 리뷰, cs, 환불, 정책 -> 통합 문서 구성 -> extract -> transform ->  
+    # 1. 리뷰, cs, 환불, 정책 -> 통합 문서 구성 -> ETL 
     @task
-    def build_knowledge_gold(): 
+    def build_knowledge_gold(process_date:str) -> dict[str, Any]: 
       # s3 버킷내 실버 경로
       base = f"silver/dt={process_date}"
       print( f"base => {base}")
