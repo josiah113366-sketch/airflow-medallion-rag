@@ -661,6 +661,19 @@ def ecommerce_silver_to_gold():
       finally: 
         conn.close() 
 
+        # 실패 상황 점검 
+        if doc_count != loaded_result['documents']: 
+          raise ValueError(f"knowledge_documents 개수가 미일치 {process_date}")
+        if chunk_count != loaded_result['chunks']: 
+          raise ValueError(f"document_chunks 개수가 미일치 {process_date}")
+
+        # 정확하게 저장 완료, 메타 정보와도 모두 일치함 
+        # 지식의 데이터베이스화 완료 
+        return {
+          **loaded_result, 
+          "quality": "ok", 
+        }
+
     # task간 연결 -> 앞 task의 결과물을 뒤 task의 인자로 전달 -> 의존성 구성 
     knowledge = build_knowledge_gold( process_date )                    # 1. 특정 날짜의 데이터를 지식 데이터 구성 ( 골드 처리 )
     checked = knowledge_quality_check( knowledge )                      # 2. 해당 데이터 체크 
