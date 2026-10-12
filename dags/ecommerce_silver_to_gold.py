@@ -51,7 +51,7 @@ def s3_client():
   # 실습 환경 통제하기 위해 임의로 파라미터 전달 
   params = {
     "process_date":Param(
-      "2026-10-08", 
+      "2026-10-12", 
       type="string",
       description="실버 데이터의 파티션 정보, ti의 실행 날짜 정보",
     )
