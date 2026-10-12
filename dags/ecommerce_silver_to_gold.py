@@ -630,7 +630,28 @@ def ecommerce_silver_to_gold():
     def vector_quality_check(
       loaded_result: dict[str, Any], 
       process_date: str
-    )->dict[str, Any]: pass
+    )->dict[str, Any]: 
+      # 디비 조회하여 개수 체크 <-> loaded_result에 세팅된 데이터 수가 일치하는지 점검 
+      # 1. 훅 획득 
+      hook = PostgresHook(
+        # ecommerce_db : airflow -> 커넥션 정보 등록 
+        postgres_conn_id = "ecommerce_db"  
+      ) 
+      # 2. 커넥션 획득 
+      conn = hook.get_conn()
+      # 3. 예외 처리 
+      try: 
+        with conn.cursor() as cur: 
+          # 현재 배치 작업의 기준 -> dt값 2026-10-12 기준으로 데이터 조회(카운트)
+          cur.execute("""
+
+          """)
+          doc_count = cur.fetchone()[0] # 디비 상에 해당 날짜의 적재된 데이터 수 
+          pass
+      except Exception: 
+        raise 
+      finally: 
+        conn.close() 
 
     # task간 연결 -> 앞 task의 결과물을 뒤 task의 인자로 전달 -> 의존성 구성 
     knowledge = build_knowledge_gold( process_date )                    # 1. 특정 날짜의 데이터를 지식 데이터 구성 ( 골드 처리 )
