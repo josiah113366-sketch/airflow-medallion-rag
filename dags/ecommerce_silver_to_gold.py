@@ -570,14 +570,43 @@ def ecommerce_silver_to_gold():
 
           # 청크 데이터 삽입
           chunks_rows = [
-
+            (
+              c["chunk_id"], 
+              c["document_id"], 
+              c["process_date"], 
+              c["chunk_index"], 
+              c["source_type"], 
+              c["product_id"], 
+              c["event_time"], 
+              c["content"], 
+              json.dumps( c["metadata"], ensure_ascii=False),
+              c["embedding"]
+            )
+            for c in chunks 
           ]
           execute_values(
             cur, 
             """
-
+              insert into document_chunks (
+                chunk_id        , 
+                document_id     , 
+                process_date    , 
+                chunk_index     , 
+                source_type     , 
+                product_id      , 
+                event_time      , 
+                content         , 
+                metadata        , 
+                embedding       
+              )
+              values %s
             """  , 
-            chunks_rows
+            [
+              row[:-1]
+              + (f"[{ ",".join( str(float(v)) for v in row[-1] ) }]")
+              for row in chunks_rows  
+            ]
+            
           )
 
           pass 
