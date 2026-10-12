@@ -38,7 +38,18 @@ def read_csv_s3(key: str) -> pd.DataFrame:
   # df 변환 처리 
   return pd.read_csv( io.BytesIO(obj['body'].read() ) )
 
-# jsonl -> s3 업로드 
+# s3에 존재하는 jsonl을 읽어서 반환 (컨셉상 골드 데이터인데 JSONL임)
+def read_jsonl_s3(key:str) -> list[dict[str, Any]]: 
+  # jsonl 객체 획득
+  obj = s3_client().get_object(Bucket=BUCKET, Key=key)
+  text = obj["Body"].read().decode("utf-8") 
+  return [
+    json.loads(line)     # 역직렬화 (str -> dict)
+    for line in text.splitlines()
+    if line.strip() # 공백 문자 제거 
+  ]
+
+# jsonl -> s3 업로드 (데이터 양이 많으면 parquet, orc, avro 등으로 처리하는 것이 좋음, 압축 필요)
 # 처리 결과에 대한 메타 정보 반환
 def write_jsonl_s3( rows: list[dict[str, Any] ], key:str ) -> dict[str, Any]: 
   # list[dict[str, Any]] -> str 
@@ -339,7 +350,19 @@ def ecommerce_silver_to_gold():
     # 3. 검색 단위 청킹 처리 
     @task
     def chunk_documents(knowledge_meta: dict[str, Any], 
-                        process_date: str)-> dict[str, Any]:pass
+                        process_date: str)-> dict[str, Any]:
+        # 문서 구성 시 사용했던 재료를 사용 OR s3에서 다시 읽어와서 처리 
+        # 시간을 요하지 않으므로 s3에서 다시 읽어와서 처리  -> 실패하면 에러 (s3 점검의 의미도 가짐)
+        documents = read_jsonl_s3(knowledge_meta["key"] )
+
+        # 청킹 데이터를 담을 그릇 준비 
+        chunks: list[dict[str, Any] ] = []
+
+        # 문서별로 독립적인 청킹 진행 
+        for doc in documents: 
+          # 청킹 관련 함수 구성 1차 처리 
+        
+        pass
     # 4. 임베딩 -> 벡터화 
     @task
     def create_embedding(chunk_meta: dict[str, Any], 
