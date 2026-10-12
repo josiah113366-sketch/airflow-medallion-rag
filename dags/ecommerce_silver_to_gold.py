@@ -330,19 +330,26 @@ def ecommerce_silver_to_gold():
     # transform 
     # 2. 통합 문서의 문제 없는지 검사 
     @task
-    def knowledge_quality_check(): pass
+    def knowledge_quality_check( knowledge_meta: dict[str, Any] ) -> dict[str, Any]: pass
     # 3. 검색 단위 청킹 처리 
     @task
-    def chunk_documents():pass
+    def chunk_documents(knowledge_meta: dict[str, Any], 
+                        process_date: str)-> dict[str, Any]:pass
     # 4. 임베딩 -> 벡터화 
     @task
-    def create_embedding(): pass
+    def create_embedding(chunk_meta: dict[str, Any], 
+                        process_date: str)-> dict[str, Any]: pass
     # 5. postgreSQL/pgVector 적재 -> load 
     @task
-    def load_rag_to_pgvector(): pass
+    def load_rag_to_pgvector(knowledge_meta: dict[str, Any], 
+                            embedding_meta: dict[str, Any], 
+                            process_date: str)-> dict[str, Any]: pass
     # 6. 실제 적재된 행 수 조회, 품질 확인 task (검증)
     @task
-    def vector_quality_check(): pass
+    def vector_quality_check(
+      loaded_result: dict[str, Any], 
+      process_date: str
+    )->dict[str, Any]: pass
 
     # task간 연결 -> 앞 task의 결과물을 뒤 task의 인자로 전달 -> 의존성 구성 
     knowledge = build_knowledge_gold( process_date )                    # 1. 특정 날짜의 데이터를 지식 데이터 구성 ( 골드 처리 )
