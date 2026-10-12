@@ -16,6 +16,7 @@ from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from psycopg2.extras import execute_values # 여러 데이터흘 한번에 insert 적제 효율 상승
+from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
 
 # 2. 전역변수(환경변수) -> .env는 이미 적용된 상태임 (airflow 내부 컨테이너)
 AWS_REGION          = os.getenv("AWS_REGION","ap-northeast-2")
@@ -40,7 +41,7 @@ def read_csv_s3(key: str) -> pd.DataFrame:
     # csv 객체 획득
     obj = s3_client().get_object(Bucket=BUCKET, Key=key)
     # df 변환 처리
-    return pd.read_csv( io.BytesIO(obj['body'].read()) )
+    return pd.read_csv( io.BytesIO(obj['Body'].read()) )
 
 # S3에 존재하는 jsonl을 읽어서 반환 (컨셉상 골드데이터인데 JSONL임)
 def read_jsonl_s3(key: str) -> list[dict[str, Any]]:
@@ -108,20 +109,28 @@ def chunk_text(text: str,               # 문장 원본 데이터
 
 # 토큰화
 def bedrock_embedding(text: str) -> list[float]:
-    clinet = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
-
-    response = clinet.invoke_model(
-        modelId=BEDROCK_EMBED_MODEL,
-        body = json.dumps({
-            "InputText": text,
-            "demensions": 1024, # 외부 env 구성 가능
-            "normalize": True   # 유사도 게산에 유리하게 적용되도록(쉽게), 정규화 처리 세팅
-        })
+    # Airflow UI에 등록된 aws_default Connection 사용
+    hook = AwsBaseHook(
+        aws_conn_id="aws_default",
+        client_type="bedrock-runtime",
+        region_name=BEDROCK_REGION,
     )
-    # dict 변환
-    payload = json.loads( response["body"].read() )
+
+    client = hook.get_client_type()
+
+    response = client.invoke_model(
+        modelId=BEDROCK_EMBED_MODEL,
+        body=json.dumps({
+            "inputText": text,
+            "dimensions": 1024,
+            "normalize": True,
+        }),
+        contentType="application/json",
+        accept="application/json",
+    )
+
+    payload = json.loads(response["body"].read())
     return payload["embedding"]
-    pass
 
 # 임베딩
 def embed(text: str) -> list[float]:
@@ -432,7 +441,7 @@ def ecommerce_silver_to_gold():
                 for i, part in enumerate(parts):
                     chunks.append({
                         # 청크 ID (문서ID:청크인덱스)
-                        "chunk_id": f"{doc['id']}:{i}",
+                        "chunk_id": f"{doc['document_id']}:{i}",
                         # 문서 ID
                         "document_id": doc['document_id'],
                         # process_date
@@ -551,8 +560,8 @@ def ecommerce_silver_to_gold():
                     ]
 
                     # 한번에 batch insert 
-                    execute_values(
-                        cur,
+                    cur.executemany(
+                        #cur,
                         """
                             insert into knowledge_documents (
                                 document_id,
@@ -565,7 +574,7 @@ def ecommerce_silver_to_gold():
                                 content,
                                 metadata
                             )
-                            values %s
+                            values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         document_rows
                     )
@@ -586,8 +595,8 @@ def ecommerce_silver_to_gold():
                         )
                         for c in chunks
                     ]
-                    execute_values(
-                        cur,
+                    cur.executemany(
+                        #cur,
                         """
                             insert into document_chunks (
                                 chunk_id,
@@ -601,11 +610,15 @@ def ecommerce_silver_to_gold():
                                 metadata,
                                 embedding
                             )
-                            values %s
+                            values (
+                                %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s::vector
+                            )
                         """,
                         [
-                            row[:-1]
-                            + (f"[{ ",".join( str(float(v)) for v in row[-1] ) }]")
+                            row[:-1] + (
+                                "[" + ",".join(str(float(v)) for v in row[-1]) + "]",
+                            )
                             for row in chunk_rows
                         ]
                         
@@ -692,19 +705,12 @@ def ecommerce_silver_to_gold():
     # analytics_result = analytics_gold( process_date )
     knowlegd_result  = knowledge_rag( process_date )
 
-    # 2개의 tak 그룹을 병렬 fan-out 구성
-    #silver_meta >> [
-    #    analytics_result,
-    #    knowlegd_result
-    #]
-    silver_meta >> knowlegd_result
-
     # 마무리 task 구성 -> DAG의 최종 상태 구성
     @task
     def finish( silver_meta: dict[str, Any],
                 # analytics_result: dict[str, Any],
                 knowlegd_result:dict[str, Any]
-               ):
+                ):
         # DAG 최종 결과
         result = {
             "status":"success",
@@ -721,6 +727,14 @@ def ecommerce_silver_to_gold():
         ))
         # XCom으로 게시 (반환)
         return result
+
+        
+    # 2개의 tak 그룹을 병렬 fan-out 구성
+    silver_meta >> [
+       #analytics_result,
+       knowlegd_result
+    ]
+    #silver_meta >> knowlegd_result
         
     # 의존성 마지막 구성 -> 각각 작업이 완료된 후 진행됨 -> fan-in
     finish(
@@ -728,8 +742,5 @@ def ecommerce_silver_to_gold():
         # analytics_result,
         knowlegd_result
     )
-
-
-    pass
 
 ecommerce_silver_to_gold()

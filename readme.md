@@ -99,7 +99,7 @@ s3://ECOMMERCE_BUCKET/
     ```
         docker compose exec airflow cat /opt/airflow/simple_auth_manager_passwords.json.generated
         ---
-        {"admin": "WqMpt3dq3bQHvXhA"}
+        {"admin": "Sgu7mhNWFTFzkMbk"}
     ```
 
 - 관리자
