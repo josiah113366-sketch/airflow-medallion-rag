@@ -86,7 +86,23 @@ def chunk_text(text: str,            # 문장 원본 데이터
   chunks: list[str] = [] 
   # 시작 위치 
   start = 0 
-  pass
+
+  # 반복 처리 
+  while start < len(text): 
+    # 청킹 단위로 자르기 
+    # 현재 위치를 기준으로 220 + 더한 값이 작은지, 문장의 길이가 작은지 체크 -> 끝 값 확인 
+    end = min(start + max_chars, len(text) )
+    # 청크를 담는 그릇에 추가 
+    chunks.append( text[start:end].strip() )
+    # 체킹 
+    if end >= len(text):
+      break 
+
+    # 다음 청크를 시작할 때, overlap 추가 시켜서 문맥을 겹치게 구성 (맥락이 이어지게, 잃지 않게)
+    start = max(0, end - overlap)
+
+  # 청크 목록 반환 
+  return chunks 
 # 임베딩 
 # 토큰화 
 
