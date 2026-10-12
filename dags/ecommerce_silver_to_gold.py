@@ -404,14 +404,23 @@ def ecommerce_silver_to_gold():
           for i, part in enumerate(parts): 
             chunks.append({
               # 청크 ID (문서 ID:청크 인덱스)   
+              "chunk_id": f"{doc['id']}:{i}", 
               # 문서 ID
+              "documents": doc['document_id'], 
               # process_date
+              "process_date": process_date, 
               # 청크 인덱스 
+              "chunk_index": i, 
               # 문서 타입 
+              "source_type": doc['source_type'], 
               # 제품 ID 
+              "product_id": doc['product_id'], 
               # 이벤트 타입 
+              "event_time": doc['event_time'], 
               # 콘텐츠(원본) 
+              "content": part, 
               # 메타데이터(문서 원문 메타데이터 활용)
+              "metadata": doc['metadata'] 
             })
         pass
     # 4. 임베딩 -> 벡터화 
