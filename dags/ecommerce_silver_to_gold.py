@@ -31,6 +31,32 @@ def s3_client():
     return hook.get_conn()
     #return boto3.client("s3", region_name=AWS_REGION)
 
+# s3에 존재하는 csv를 읽어서 df로 반환 
+def read_csv_s3(key: str) -> pd.DataFrame: 
+  # csv 객체 획득 
+  obj = s3_client().get_object(Bucket=BUCKET, Key=key) 
+  # df 변환 처리 
+  return pd.read_csv( io.BytesIO(obj['body'].read() ) )
+
+# jsonl -> s3 업로드 
+# 처리 결과에 대한 메타 정보 반환
+def write_jsonl_s3( rows: list[dict[str, Any] ], key:str ) -> dict[str, Any]: 
+  # list[dict[str, Any]] -> str 
+  body = "\n".join(
+    json.dumps(row, ensure_ascii=False) # 데이터 1개는 json 문자열로 처리 -> \n 결합 -> jsonl 형태로 구성
+    for row in rows # 다양한 csv -> 공통 스키마 구조로 dict화한 데이터 1개씩 추출 
+  ).encode('utf-8')
+  # s3 업로드 -> 골드 데이터를 s3에 업로드 
+  s3_client().put_object(
+    Bucket = BUCKET, 
+    Key = key, 
+    Body = body, 
+    ContentType = "application/x-ndjson; charset=utf-8"
+  ) 
+  # 메타 데이터 구성 후 반환
+  return {"bucket": BUCKET, "key":key, "rows":len(rows)}
+
+
 # DAG (@dag), 특정 함수에 @dag 데커레이터 추가하면 DAG 구성됨
 @dag(
   # airflow ui(대시보드)에 표시되는 DAG ID 
@@ -156,25 +182,167 @@ def ecommerce_silver_to_gold():
   @task_group(group_id="knowledge_rag")
   def knowledge_rag(process_date: str):
     # 실버 데이터를 공통 문서 모델로 구성 task 집합 -> etl 수행 
+    # 1. 리뷰, cs, 환불, 정책 -> 통합 문서 구성 -> extract -> transform ->  
     @task
-    def build_knowledge_gold(): pass
-    # 1. 리뷰, cs, 환불, 정책 -> 통합 문서 구성 -> extract 
+    def build_knowledge_gold(): 
+      # s3 버킷내 실버 경로
+      base = f"silver/dt={process_date}"
+      print( f"base => {base}")
+      
+      # 데이터 로드 
+      # 상품 마스터
+      products = read_csv_s3(f"{base}/products.csv")    
+      # 고객 리뷰
+      reviews = read_csv_s3(f"{base}/reviews.csv")
+      # CS 문의
+      cs_tickets = read_csv_s3(f"{base}/cs_tickets.csv")
+      # 환불 기록
+      refunds = read_csv_s3(f"{base}/refunds.csv")
+      # 회사 정책 문서
+      policies = read_csv_s3(f"{base}/policies.csv")
+      
+      # product_id로 제품명 dict 구성
+      product_map = (
+          products
+          .set_index("product_id")["product_name"]
+          .to_dict()
+      )
+      
+      # 통합 스키마를 담는 그릇 준비
+      docs: list[dict[str, Any]] = []
+      
+      # 리뷰 -> 지식 문서로 변환
+      for row in reviews.to_dict("records"):
+          docs.append({
+              # 문서 ID -> 데이터를 구분하는 ID가 문서 ID로 대체됨
+              "document_id"   : f"review:{row['review_id']}",  # V000001, V000002, ...
+              # 처리일
+              "process_date"  : process_date,
+              # 문서 출처
+              "source_type"   : "review",
+              # 소스 ID -> 중복 사용
+              "source_id"     : row['review_id'],
+              # 어떤 제품에 대한 리뷰
+              "product_id"    : row['product_id'],
+              # 이벤트 시간
+              "event_time"    : row['review_time'],
+              # 타이틀
+              "title"         : (
+                  f"{product_map.get(row['product_id'])} "
+                  "고객 리뷰"
+              ),
+              # 리뷰에 대한 핵심 내용 -> 자연형 문서 형태로 합침, 문장의 구분자로 .를 사용
+              "content"       : (
+                  f"상품: {product_map.get(row['product_id'])}. "
+                  f"평점: {row['rating']}점. "
+                  f"고객 리뷰: {row['review_text']}"
+              ),
+              # 메타 데이터 -> 검색 결과와 함께 활용되는 구조화 정보
+              "metadata"      : {
+                  "rating"   : int(row['rating']), 
+                  "order_id" : row['order_id']
+              }
+          })
+      #print( docs )
+      
+      # CS -> 지식 문서로 변환
+      for row in cs_tickets.to_dict("records"):
+          docs.append({
+              "document_id"   : f"cs:{row['ticket_id']}",  # V000001, V000002, ...
+              "process_date"  : process_date,
+              "source_type"   : "cs_ticket",
+              "source_id"     : row['ticket_id'],
+              "product_id"    : row['product_id'],
+              "event_time"    : row['created_at'],
+              "title"         : (
+                  f"{product_map.get(row['product_id'])} "
+                  "CS 문의"
+              ),
+              "content"       : (
+                  f"상품: {product_map.get(row['product_id'])}. "
+                  f"문의 우형: {row['topic']}. "
+                  f"고객 문의: {row['message']}"
+              ),
+              # 토픽, 고객 정보 메타 데이터 구성
+              "metadata"      : {
+                  "topic"    : row['topic'], 
+                  "order_id" : row['order_id'],
+                  "customer_id" : row['customer_id']
+              }
+      
+          })
+      
+      
+      # 환불 -> 지식 문서로 변환
+      for row in refunds.to_dict("records"):
+          docs.append({
+              "document_id"   : f"refund:{row['refund_id']}", 
+              "process_date"  : process_date,
+              "source_type"   : "refund",
+              "source_id"     : row['refund_id'],
+              "product_id"    : row['product_id'],
+              "event_time"    : row['refund_time'],
+              "title"         : (
+                  f"{product_map.get(row['product_id'])} "
+                  "환불 기록"
+              ),
+              "content"       : (
+                  f"상품: {product_map.get(row['product_id'])}. "
+                  f"문의 유형: {row['refund_reason']}. "
+                  f"고객 문의: {row['refund_amount']}원."
+              ),
+              # 환불 이유
+              "metadata"      : {
+                  "refund_reason"    : row['refund_reason'], 
+                  "order_id" : row['order_id']
+              }
+          })
+      
+      # 정책 -> 지식 문서로 변환
+      for row in policies.to_dict("records"):
+          docs.append({
+              "document_id"   : f"policy:{row['policy_id']}", 
+              "process_date"  : process_date,
+              "source_type"   : "policy",
+              "source_id"     : row['policy_id'],
+              "product_id"    : None,
+              "event_time"    : None,
+              "title"         : row['title'],
+              "content"       : (
+                  f"정책명: {row['title']}. "
+                  f"정책 내용: {row['content']}"
+              ),
+              "metadata"      : {
+                  "policy_type"    : row['policy_type']
+              }
+          })
+      
+      # s3에 업로드되는 상황까지 고려 -> key 필요 (경로)    
+      # csv -> dt -> dict -> jsonl 
+      key = (
+          f"gold/knowledge/dt={process_date}/"    
+          "document.jsonl"
+      )
+      
+      # jsonl 내용 구성 s3 업로드 처리 
+      return write_jsonl_s3(docs, key)
+      # print(docs)
     # transform 
     # 2. 통합 문서의 문제 없는지 검사 
-    @task
-    def knowledge_quality_check(): pass
-    # 3. 검색 단위 청킹 처리 
-    @task
-    def chunk_documents():pass
-    # 4. 임베딩 -> 벡터화 
-    @task
-    def create_embedding(): pass
-    # 5. postgreSQL/pgVector 적재 -> load 
-    @task
-    def load_rag_to_pgvector(): pass
-    # 6. 실제 적재된 행 수 조회, 품질 확인 task (검증)
-    @task
-    def vector_quality_check(): pass
+    # @task
+    # def knowledge_quality_check(): pass
+    # # 3. 검색 단위 청킹 처리 
+    # @task
+    # def chunk_documents():pass
+    # # 4. 임베딩 -> 벡터화 
+    # @task
+    # def create_embedding(): pass
+    # # 5. postgreSQL/pgVector 적재 -> load 
+    # @task
+    # def load_rag_to_pgvector(): pass
+    # # 6. 실제 적재된 행 수 조회, 품질 확인 task (검증)
+    # @task
+    # def vector_quality_check(): pass
 
     return {}
 
