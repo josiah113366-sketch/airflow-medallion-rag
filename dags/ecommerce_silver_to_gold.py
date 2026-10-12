@@ -514,6 +514,41 @@ def ecommerce_silver_to_gold():
       # 예외 처리 -> 실패를 대비하여 롤백 처리를 위해 구성 
       try: 
         with conn.cursor() as cur: 
+          # process_data를 기준으로 (데이터를 처리하는 날 기준)
+
+          # 중복 데이터 삭제 처리 
+          # 같은 날짜에 재실행되어서 중복된 데이터가 처리되지 않도록 파티션 기준으로 제거 
+          cur.execute(
+            "delete from document_chunks "  
+            "where process_date= %s", 
+            (process_date, )
+          )
+          cur.execute(
+            "delete from knowledge_documents "  
+            "where process_date= %s", 
+            (process_date, )
+          )
+
+          # 데이터를 한 번에 insert 하기 위해 insert에 맞는 구조로 데이터를 변형 
+          document_rows = [
+            # 순서 유지 중요, 
+            (
+              d["document_id"], 
+              d["process_date"], 
+              d["source_type"], 
+              d["source_id"], 
+              d["product_id"], 
+              d["event_time"], 
+              d["title"], 
+              d["content"],
+              # 객체 직렬화 처리  
+              json.dumps( d["metadata"], ensure_ascii=False ) 
+            )  
+            for d in documents
+          ]
+
+          # 
+
           pass 
         # 최종 반영 
         conn.commit() 
