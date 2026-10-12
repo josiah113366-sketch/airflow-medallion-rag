@@ -687,10 +687,11 @@ def ecommerce_silver_to_gold():
   knowledget_result = knowledge_rag( process_date ) 
 
   # 2개의 task 그룹을 병렬 fan-out 구성
-  silver_meta >> [
+  # silver_meta >> [
       # analytics_result, 
-      knowledget_result
-  ]
+  #     knowledget_result
+  # ]
+  silver_meta >> knowledget_result 
 
   # 마무리 task 구성 -> DAG의 최종 상태 구성
   @task
@@ -707,8 +708,13 @@ def ecommerce_silver_to_gold():
       # 지식 결과 
       "rag":knowledget_result
     }
+    # 로그 출력
+    print( json.dumps(
+      result, 
+      ensure_ascii=False,   
+    ))
     # XCom으로 게시 (반환)
-    return {}
+    return result
 
   # 의존성 마지막 구성 -> 각각 작업이 완료된 후 진행됨 -> fan-in 
   finish(
@@ -717,4 +723,6 @@ def ecommerce_silver_to_gold():
     knowledget_result
   )
 
+  pass
+  
 ecommerce_silver_to_gold()
