@@ -72,6 +72,15 @@ def write_jsonl_s3( rows: list[dict[str, Any]], key: str) -> dict[str, Any]:
     # 메타 데이터 구성후 반환
     return {"bucket": BUCKET, "key":key, "rows":len(rows)}
 
+def write_csv_s3(df: pd.DataFrame, key: str) -> dict[str, Any]:
+    body = df.to_csv(index=False).encode("utf-8")
+    s3_client().put_object(
+        Bucket=BUCKET,
+        Key=key,
+        Body=body,
+        ContentType="text/csv; charset=utf-8",
+    )
+    return {"bucket": BUCKET, "key": key, "rows": len(df)}
 
 #########
 # RAG 관련
@@ -260,9 +269,306 @@ def ecommerce_silver_to_gold():
     silver_meta = inspect_silver( process_date )
 
     # 2개의 병렬 작업 task 구성 (분석(task, task, ...), 지식(task, task,....) )
-    # @task_group(group_id="analytics_gold")
-    # def analytics_gold(process_date: str):
-    #     return {}
+    @task_group(group_id="analytics_gold")
+    def analytics_gold(process_date: str):
+
+        @task
+        def build_product_metrics(process_date: str) -> dict[str, Any]:
+            base = f"silver/dt={process_date}"
+
+            products = read_csv_s3(f"{base}/products.csv")
+            orders = read_csv_s3(f"{base}/orders.csv")
+            refunds = read_csv_s3(f"{base}/refunds.csv")
+            reviews = read_csv_s3(f"{base}/reviews.csv")
+
+            order_agg = (
+                orders.groupby("product_id", as_index=False)
+                .agg(
+                    sales_amount=("amount", "sum"),
+                    order_count=("order_id", "nunique"),
+                    quantity=("quantity", "sum"),
+                )
+            )
+
+            if refunds.empty:
+                refund_agg = pd.DataFrame(
+                    columns=[
+                        "product_id",
+                        "refund_count",
+                        "refund_amount",
+                    ]
+                )
+            else:
+                refund_agg = (
+                    refunds.groupby("product_id", as_index=False)
+                    .agg(
+                        refund_count=("refund_id", "nunique"),
+                        refund_amount=("refund_amount", "sum"),
+                    )
+                )
+
+            if reviews.empty:
+                review_agg = pd.DataFrame(
+                    columns=[
+                        "product_id",
+                        "review_count",
+                        "avg_rating",
+                        "negative_review_count",
+                    ]
+                )
+            else:
+                review_agg = (
+                    reviews.groupby("product_id", as_index=False)
+                    .agg(
+                        review_count=("review_id", "nunique"),
+                        avg_rating=("rating", "mean"),
+                        negative_review_count=(
+                            "rating",
+                            lambda s: int((s <= 2).sum()),
+                        ),
+                    )
+                )
+
+            result = (
+                products
+                .merge(order_agg, on="product_id", how="left")
+                .merge(refund_agg, on="product_id", how="left")
+                .merge(review_agg, on="product_id", how="left")
+            )
+
+            for col in [
+                "sales_amount",
+                "order_count",
+                "quantity",
+                "refund_count",
+                "refund_amount",
+                "review_count",
+                "negative_review_count",
+            ]:
+                result[col] = result[col].fillna(0)
+
+            result["avg_rating"] = (
+                result["avg_rating"].fillna(0).round(2)
+            )
+
+            result["refund_rate"] = (
+                result["refund_count"]
+                / result["order_count"].replace(0, pd.NA)
+                * 100
+            ).fillna(0).round(2)
+
+            result.insert(0, "process_date", process_date)
+
+            key = (
+                f"gold/analytics/dt={process_date}/"
+                "product_metrics.csv"
+            )
+
+            return write_csv_s3(result, key)
+
+        @task
+        def build_daily_kpi(process_date: str) -> dict[str, Any]:
+            base = f"silver/dt={process_date}"
+
+            orders = read_csv_s3(f"{base}/orders.csv")
+            refunds = read_csv_s3(f"{base}/refunds.csv")
+            reviews = read_csv_s3(f"{base}/reviews.csv")
+            tickets = read_csv_s3(f"{base}/cs_tickets.csv")
+
+            order_count = int(orders["order_id"].nunique())
+            refund_count = (
+                int(refunds["refund_id"].nunique())
+                if not refunds.empty
+                else 0
+            )
+
+            row = {
+                "process_date": process_date,
+                "sales_amount": float(orders["amount"].sum()),
+                "order_count": order_count,
+                "refund_count": refund_count,
+                "refund_rate": round(
+                    refund_count / max(1, order_count) * 100,
+                    2,
+                ),
+                "review_count": int(len(reviews)),
+                "avg_rating": (
+                    round(float(reviews["rating"].mean()), 2)
+                    if not reviews.empty
+                    else 0
+                ),
+                "cs_ticket_count": int(len(tickets)),
+            }
+
+            key = (
+                f"gold/analytics/dt={process_date}/"
+                "daily_kpi.csv"
+            )
+
+            return write_csv_s3(
+                pd.DataFrame([row]),
+                key,
+            )
+
+        @task
+        def quality_check(
+            product_metrics: dict[str, Any],
+            daily_kpi: dict[str, Any],
+        ) -> dict[str, Any]:
+
+            if product_metrics["rows"] <= 0:
+                raise ValueError("product_metrics is empty")
+
+            if daily_kpi["rows"] != 1:
+                raise ValueError(
+                    "daily_kpi must contain exactly one row"
+                )
+
+            return {
+                "status": "ok",
+                "product_metrics_key": product_metrics["key"],
+                "daily_kpi_key": daily_kpi["key"],
+            }
+
+        @task
+        def load_analytics_to_postgres(
+            checked: dict[str, Any],
+            process_date: str,
+        ) -> dict[str, Any]:
+
+            product_df = read_csv_s3(
+                checked["product_metrics_key"]
+            )
+            daily_df = read_csv_s3(
+                checked["daily_kpi_key"]
+            )
+
+            hook = PostgresHook(
+                postgres_conn_id="ecommerce_db"
+            )
+
+            conn = hook.get_conn()
+
+            try:
+                with conn.cursor() as cur:
+                    # 같은 partition을 재실행해도 결과가 중복되지 않게 한다.
+                    cur.execute(
+                        "DELETE FROM product_metrics "
+                        "WHERE process_date = %s",
+                        (process_date,),
+                    )
+                    cur.execute(
+                        "DELETE FROM daily_kpi "
+                        "WHERE process_date = %s",
+                        (process_date,),
+                    )
+
+                    product_rows = [
+                        tuple(row)
+                        for row in product_df[
+                            [
+                                "process_date",
+                                "product_id",
+                                "product_name",
+                                "category",
+                                "sales_amount",
+                                "order_count",
+                                "quantity",
+                                "refund_count",
+                                "refund_amount",
+                                "refund_rate",
+                                "review_count",
+                                "avg_rating",
+                                "negative_review_count",
+                            ]
+                        ].itertuples(index=False, name=None)
+                    ]
+
+                    execute_values(
+                        cur,
+                        """
+                        INSERT INTO product_metrics (
+                            process_date,
+                            product_id,
+                            product_name,
+                            category,
+                            sales_amount,
+                            order_count,
+                            quantity,
+                            refund_count,
+                            refund_amount,
+                            refund_rate,
+                            review_count,
+                            avg_rating,
+                            negative_review_count
+                        )
+                        VALUES %s
+                        """,
+                        product_rows,
+                    )
+
+                    daily_rows = [
+                        tuple(row)
+                        for row in daily_df[
+                            [
+                                "process_date",
+                                "sales_amount",
+                                "order_count",
+                                "refund_count",
+                                "refund_rate",
+                                "review_count",
+                                "avg_rating",
+                                "cs_ticket_count",
+                            ]
+                        ].itertuples(index=False, name=None)
+                    ]
+
+                    execute_values(
+                        cur,
+                        """
+                        INSERT INTO daily_kpi (
+                            process_date,
+                            sales_amount,
+                            order_count,
+                            refund_count,
+                            refund_rate,
+                            review_count,
+                            avg_rating,
+                            cs_ticket_count
+                        )
+                        VALUES %s
+                        """,
+                        daily_rows,
+                    )
+
+                conn.commit()
+
+            except Exception:
+                conn.rollback()
+                raise
+
+            finally:
+                conn.close()
+
+            return {
+                "status": "loaded",
+                "product_metrics_rows": len(product_df),
+                "daily_kpi_rows": len(daily_df),
+            }
+
+        product_metrics = build_product_metrics(process_date)
+        daily_kpi = build_daily_kpi(process_date)
+
+        checked = quality_check(
+            product_metrics,
+            daily_kpi,
+        )
+
+        return load_analytics_to_postgres(
+            checked,
+            process_date,
+        )
+
 
     # 비정형/지식 데이터 처리 함수
     @task_group(group_id="knowledge_rag")
@@ -702,13 +1008,13 @@ def ecommerce_silver_to_gold():
 
 
     # 각각 task 그룹 실행->호출
-    # analytics_result = analytics_gold( process_date )
+    analytics_result = analytics_gold( process_date )
     knowlegd_result  = knowledge_rag( process_date )
 
     # 마무리 task 구성 -> DAG의 최종 상태 구성
     @task
     def finish( silver_meta: dict[str, Any],
-                # analytics_result: dict[str, Any],
+                analytics_result: dict[str, Any],
                 knowlegd_result:dict[str, Any]
                 ):
         # DAG 최종 결과
@@ -717,6 +1023,7 @@ def ecommerce_silver_to_gold():
             # 처리한 파일수 기록
             "silver_files": silver_meta["file_count"],
             # 분석 결과
+            "analytics": analytics_result,
             # 지식 결과
             "rag":knowlegd_result
         }
@@ -731,7 +1038,7 @@ def ecommerce_silver_to_gold():
         
     # 2개의 tak 그룹을 병렬 fan-out 구성
     silver_meta >> [
-       #analytics_result,
+       analytics_result,
        knowlegd_result
     ]
     #silver_meta >> knowlegd_result
@@ -739,7 +1046,7 @@ def ecommerce_silver_to_gold():
     # 의존성 마지막 구성 -> 각각 작업이 완료된 후 진행됨 -> fan-in
     finish(
         silver_meta,
-        # analytics_result,
+        analytics_result,
         knowlegd_result
     )
 
