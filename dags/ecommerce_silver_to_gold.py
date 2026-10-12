@@ -15,6 +15,7 @@ from airflow.sdk import Param, dag, task, task_group, get_current_context # 필�
 from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from psycopg2.extras import execute_values # 여러 데이터를 한 번에 insert 적재 효율 상승
 
 # 전역 변수(환경 변수) -> .env는 적용된 상태임 (airflow 내부 컨테이너)
 AWS_REGION          = os.getenv("AWS_REGION", "ap-northeast-2")
@@ -547,7 +548,8 @@ def ecommerce_silver_to_gold():
             for d in documents
           ]
 
-          # 
+          # 한 번에 batch insert 
+          execute_values()
 
           pass 
         # 최종 반영 
