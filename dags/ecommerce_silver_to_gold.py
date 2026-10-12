@@ -398,8 +398,21 @@ def ecommerce_silver_to_gold():
 
         # 문서별로 독립적인 청킹 진행 
         for doc in documents: 
-          # 청킹 관련 함수 구성 1차 처리 
-        
+          # 청킹 처리 -> 말뭉치를 청크 단위로 분해 (검색 단위)
+          parts = chunk_text(doc["content"], max_chars=220, overlap=50 ) # 수치를 바꾸면 -> 품질 바뀜 
+          # 청크별로 레코드 구성(구조화) 
+          for i, part in enumerate(parts): 
+            chunks.append({
+              # 청크 ID (문서 ID:청크 인덱스)   
+              # 문서 ID
+              # process_date
+              # 청크 인덱스 
+              # 문서 타입 
+              # 제품 ID 
+              # 이벤트 타입 
+              # 콘텐츠(원본) 
+              # 메타데이터(문서 원문 메타데이터 활용)
+            })
         pass
     # 4. 임베딩 -> 벡터화 
     @task
