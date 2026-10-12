@@ -549,7 +549,24 @@ def ecommerce_silver_to_gold():
           ]
 
           # 한 번에 batch insert 
-          execute_values()
+          execute_values(
+            cur, 
+            """
+              insert into knowledge_documents (
+                document_id ,
+                process_date,
+                source_type ,
+                source_id   ,
+                product_id  ,
+                event_time  ,
+                title       ,
+                content     ,
+                metadata
+              )
+              values %s 
+            """,   
+            document_rows
+          )
 
           pass 
         # 최종 반영 
