@@ -329,22 +329,28 @@ def ecommerce_silver_to_gold():
       # print(docs)
     # transform 
     # 2. 통합 문서의 문제 없는지 검사 
-    # @task
-    # def knowledge_quality_check(): pass
-    # # 3. 검색 단위 청킹 처리 
-    # @task
-    # def chunk_documents():pass
-    # # 4. 임베딩 -> 벡터화 
-    # @task
-    # def create_embedding(): pass
-    # # 5. postgreSQL/pgVector 적재 -> load 
-    # @task
-    # def load_rag_to_pgvector(): pass
-    # # 6. 실제 적재된 행 수 조회, 품질 확인 task (검증)
-    # @task
-    # def vector_quality_check(): pass
+    @task
+    def knowledge_quality_check(): pass
+    # 3. 검색 단위 청킹 처리 
+    @task
+    def chunk_documents():pass
+    # 4. 임베딩 -> 벡터화 
+    @task
+    def create_embedding(): pass
+    # 5. postgreSQL/pgVector 적재 -> load 
+    @task
+    def load_rag_to_pgvector(): pass
+    # 6. 실제 적재된 행 수 조회, 품질 확인 task (검증)
+    @task
+    def vector_quality_check(): pass
 
-    return {}
+    # task간 연결 -> 앞 task의 결과물을 뒤 task의 인자로 전달 -> 의존성 구성 
+    knowledge = build_knowledge_gold( process_date )                    # 1. 특정 날짜의 데이터를 지식 데이터 구성 ( 골드 처리 )
+    checked = knowledge_quality_check( knowledge )                      # 2. 해당 데이터 체크 
+    chunks = chunk_documents( checked, process_date )                   # 3. 청킹 처리 
+    embedding = create_embedding( chunks, process_date )                # 4. 임베딩 처리 
+    loaded = load_rag_to_pgvector( embedding, embedding, process_date ) # 5. pgvector 적재 
+    return vector_quality_check( loaded, process_date )                 # 6. 품질 체크 
 
   # 각각 task 그룹 실행 -> 호출 
   # analytics_result = analytics_gold( process_date )
