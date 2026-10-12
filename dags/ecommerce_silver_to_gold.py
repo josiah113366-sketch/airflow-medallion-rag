@@ -167,7 +167,7 @@ def embed(text: str) -> list[float]:
         # 실패시 재시도 2회
         "retries":2,
         # 간격 30초 대기
-        "retry_deply":timedelta(seconds=30)
+        "retry_delay": timedelta(seconds=30)
     },
     # 실습 환경 통제하기 위해 임의로 파라미터 전달
     params={
@@ -484,25 +484,18 @@ def ecommerce_silver_to_gold():
                         ].itertuples(index=False, name=None)
                     ]
 
-                    execute_values(
-                        cur,
+                    cur.executemany(
                         """
                         INSERT INTO product_metrics (
-                            process_date,
-                            product_id,
-                            product_name,
-                            category,
-                            sales_amount,
-                            order_count,
-                            quantity,
-                            refund_count,
-                            refund_amount,
-                            refund_rate,
-                            review_count,
-                            avg_rating,
-                            negative_review_count
+                            process_date, product_id, product_name, category,
+                            sales_amount, order_count, quantity,
+                            refund_count, refund_amount, refund_rate,
+                            review_count, avg_rating, negative_review_count
                         )
-                        VALUES %s
+                        VALUES (
+                            %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s
+                        )
                         """,
                         product_rows,
                     )
@@ -523,20 +516,14 @@ def ecommerce_silver_to_gold():
                         ].itertuples(index=False, name=None)
                     ]
 
-                    execute_values(
-                        cur,
+                    cur.executemany(
                         """
                         INSERT INTO daily_kpi (
-                            process_date,
-                            sales_amount,
-                            order_count,
-                            refund_count,
-                            refund_rate,
-                            review_count,
-                            avg_rating,
-                            cs_ticket_count
+                            process_date, sales_amount, order_count,
+                            refund_count, refund_rate, review_count,
+                            avg_rating, cs_ticket_count
                         )
-                        VALUES %s
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         daily_rows,
                     )
