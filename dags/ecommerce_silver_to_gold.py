@@ -182,7 +182,7 @@ def ecommerce_silver_to_gold():
   @task_group(group_id="knowledge_rag")
   def knowledge_rag(process_date: str):
     # 실버 데이터를 공통 문서 모델로 구성 task 집합 -> etl 수행 
-    # 1. 리뷰, cs, 환불, 정책 -> 통합 문서 구성 -> ETL 
+    # 1. 리뷰, cs, 환불, 정책 -> 통합 문서 구성 -> ETL -> 골드 데이터 구성 완료
     @task
     def build_knowledge_gold(process_date:str) -> dict[str, Any]: 
       # s3 버킷내 실버 경로
@@ -328,9 +328,14 @@ def ecommerce_silver_to_gold():
       return write_jsonl_s3(docs, key)
       # print(docs)
     # transform 
-    # 2. 통합 문서의 문제 없는지 검사 
+    # 2. 통합 문서(n개의 서로 다른 구조의 csv를 통합 스키마로 구성)의 문제 없는지 검사 
     @task
-    def knowledge_quality_check( knowledge_meta: dict[str, Any] ) -> dict[str, Any]: pass
+    def knowledge_quality_check( knowledge_meta: dict[str, Any] ) -> dict[str, Any]: 
+      # 해당 문서의 개수가 0건이면 이후 진행 x -> 실패 처리 
+      if knowledge_meta["rows"] <= 0:
+        raise ValueError(f"knowledge document is empty: {knowledge_meta}")
+      return knowledge_meta 
+    
     # 3. 검색 단위 청킹 처리 
     @task
     def chunk_documents(knowledge_meta: dict[str, Any], 
