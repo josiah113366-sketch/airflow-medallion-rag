@@ -75,7 +75,17 @@ def write_jsonl_s3( rows: list[dict[str, Any] ], key:str ) -> dict[str, Any]:
 def chunk_text(text: str,            # 문장 원본 데이터 
               max_chars: int = 220,  # 문서 단위로 자를 최대 문자수 임의 지정 
               overlap: int = 50      # 문맥 정보 손실을 위해서 중첩 문자 수 임의 지정 
-)-> list{str}: 
+)-> list[str]: 
+  # 공백을 구분자로 문자 등을 합치기 -> 말뭉치 구성
+  # 공백/개행 등을 정리하여 청킹 기준으로 구성
+  text = " ".join( str(text).split() )
+  # 공백 문장 나온다면 
+  if not text: 
+    return [] 
+  # 청킹 결과를 담을 그릇 준비 
+  chunks: list[str] = [] 
+  # 시작 위치 
+  start = 0 
   pass
 # 임베딩 
 # 토큰화 
