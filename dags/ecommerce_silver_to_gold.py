@@ -422,6 +422,15 @@ def ecommerce_silver_to_gold():
               # 메타데이터(문서 원문 메타데이터 활용)
               "metadata": doc['metadata'] 
             })
+
+          # 키 생성 
+          key = (
+              f"gold/knowledge/dt={process_date}/"   
+              "chunk.jsonl"
+          )
+
+          # s3에 업로드 
+          return write_jsonl_s3(chunks, key) 
         pass
     # 4. 임베딩 -> 벡터화 
     @task
